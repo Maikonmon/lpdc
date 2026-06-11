@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Administrativo - Agendamentos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <section class="admin-hero">
+      <div class="admin-copy">
+        <span class="eyebrow">Admin</span>
+        <h1>Painel de agendamentos</h1>
+        <p>Visualize todas as solicitações de reserva enviadas pelos clientes. Você pode monitorar pedidos, limpar históricos e confirmar agendamentos manualmente.</p>
+      </div>
+      <a class="btn btn-secondary" href="reservation.html">Ir para reservas</a>
+    </section>
+
+    <section class="admin-panel">
+      <div class="admin-toolbar">
+        <div class="admin-status" id="adminStatus">Carregando solicitações...</div>
+        <button class="btn btn-primary" id="clearStorage">Limpar registros</button>
+      </div>
+      <div class="admin-list" id="adminList"></div>
+    </section>
+  </div>
+
+  <script>
+    const storageKey = 'lpdc_reservations';
+    const listEl = document.getElementById('adminList');
+    const statusEl = document.getElementById('adminStatus');
+    const clearButton = document.getElementById('clearStorage');
+
+    function formatDate(value) {
+      const date = new Date(value);
+      return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function renderRequests() {
+      const requests = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      listEl.innerHTML = '';
+
+      if (!requests.length) {
+        statusEl.textContent = 'Nenhuma solicitação encontrada.';
+        listEl.innerHTML = '<div class="admin-empty">Não há agendamentos registrados no momento.</div>';
+        return;
+      }
+
+      statusEl.textContent = `${requests.length} solicitação(ões) encontrada(s)`;
+
+      requests.sort((a, b) => b.id - a.id).forEach((request) => {
+        const card = document.createElement('article');
+        card.className = 'admin-card';
+        card.innerHTML = `
+          <h2>${request.name}</h2>
+          <p><strong>Telefone:</strong> ${request.phone}</p>
+          <p><strong>Data:</strong> ${request.date} às ${request.time}</p>
+          <p><strong>Serviço:</strong> ${request.service}</p>
+          <p><strong>Observações:</strong> ${request.notes}</p>
+          <span class="tag">Registrado em ${formatDate(request.createdAt)}</span>
+        `;
+        listEl.appendChild(card);
+      });
+    }
+
+    clearButton.addEventListener('click', () => {
+      if (confirm('Deseja realmente apagar todos os registros de agendamento?')) {
+        localStorage.removeItem(storageKey);
+        renderRequests();
+      }
+    });
+
+    renderRequests();
+  </script>
+</body>
+</html>

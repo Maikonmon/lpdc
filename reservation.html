@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reserva de Corte Funcional</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <section class="reservation-hero">
+      <div class="reservation-copy">
+        <span class="eyebrow">Reserva</span>
+        <h1>Agende sua visita com praticidade</h1>
+        <p>Preencha o formulário abaixo para reservar seu horário. Selecione a data e horário que sejam mais convenientes e nossa equipe entrará em contato para confirmar.</p>
+      </div>
+      <a class="btn btn-secondary" href="index.html">Voltar à página inicial</a>
+    </section>
+
+    <section class="reservation-form-section">
+      <form class="reservation-form" id="reservationForm">
+        <div class="form-grid">
+          <label class="form-field">
+            <span>Nome completo</span>
+            <input type="text" name="name" required placeholder="Seu nome completo" />
+          </label>
+          <label class="form-field">
+            <span>Telefone de contato</span>
+            <input type="tel" name="phone" required placeholder="(99) 99999-9999" pattern="[0-9 ()+-]{8,20}" />
+          </label>
+          <label class="form-field">
+            <span>Data desejada</span>
+            <input type="date" name="date" id="reservationDate" required />
+          </label>
+          <label class="form-field">
+            <span>Horário preferido</span>
+            <input type="time" name="time" id="reservationTime" required min="07:00" max="19:00" />
+          </label>
+          <div class="form-field full-width available-times">
+            <span>Próximos horários livres</span>
+            <div class="slots-list" id="availableSlots">Selecione uma data para ver os horários disponíveis.</div>
+          </div>
+          <div class="form-field full-width service-field">
+            <span>Serviço</span>
+            <div class="service-options">
+              <label class="service-card">
+                <input type="radio" name="service" value="corte" required />
+                <div>
+                  <strong>Corte funcional</strong>
+                  <p>Visual moderno e acabamento técnico.</p>
+                </div>
+              </label>
+              <label class="service-card">
+                <input type="radio" name="service" value="barba" />
+                <div>
+                  <strong>Barba e acabamento</strong>
+                  <p>Estilo preciso e contorno limpo.</p>
+                </div>
+              </label>
+              <label class="service-card">
+                <input type="radio" name="service" value="combo" />
+                <div>
+                  <strong>Combo cabelo + barba</strong>
+                  <p>Melhor custo-benefício em um só agendamento.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+          <label class="form-field full-width">
+            <span>Observações</span>
+            <textarea name="notes" rows="4" placeholder="Você pode informar preferências ou mensagens extras"></textarea>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Confirmar reserva</button>
+          <p class="form-help">Após o envio, você será redirecionado para o WhatsApp para confirmar a reserva.</p>
+          <a class="btn btn-secondary" href="admin.html">Abrir painel administrativo</a>
+        </div>
+
+        <div class="form-success" id="formSuccess" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const reservationDate = document.getElementById('reservationDate');
+    const reservationTime = document.getElementById('reservationTime');
+    const availableSlots = document.getElementById('availableSlots');
+    const today = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+    const minDate = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    reservationDate.min = minDate;
+
+    const form = document.getElementById('reservationForm');
+    const successEl = document.getElementById('formSuccess');
+
+    // Substitua pelo seu número do WhatsApp em formato internacional sem o símbolo +
+    const whatsappNumber = '5516999494510';
+    const minIntervalMinutes = 40;
+    const slotStepMinutes = 30;
+    const businessStart = 7 * 60;
+    const businessEnd = 19 * 60;
+    const lastSameDayMinute = 18 * 60 + 20;
+    const storageKey = 'lpdc_reservations';
+
+    const timeToMinutes = (timeValue) => {
+      const [hour, minute] = timeValue.split(':').map(Number);
+      return hour * 60 + minute;
+    };
+
+    const formatTime = (minutes) => {
+      const hour = Math.floor(minutes / 60);
+      const minute = minutes % 60;
+      return `${pad(hour)}:${pad(minute)}`;
+    };
+
+    const getReservationsByDate = (date) => {
+      const all = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      return all.filter((reservation) => reservation.date === date);
+    };
+
+    const getSlots = () => {
+      const slots = [];
+      for (let current = businessStart; current <= businessEnd; current += slotStepMinutes) {
+        slots.push(current);
+      }
+      return slots;
+    };
+
+    const isSlotAvailable = (slotMinutes, reservations) => {
+      return !reservations.some((reservation) => {
+        const reservedMinutes = timeToMinutes(reservation.time);
+        return Math.abs(reservedMinutes - slotMinutes) < minIntervalMinutes;
+      });
+    };
+
+    const renderAvailableSlots = () => {
+      const selectedDate = reservationDate.value;
+      if (!selectedDate) {
+        availableSlots.textContent = 'Selecione uma data para ver os horários disponíveis.';
+        return;
+      }
+
+      const reservations = getReservationsByDate(selectedDate);
+      let slots = getSlots().filter((slot) => isSlotAvailable(slot, reservations));
+
+      const now = new Date();
+      const todayValue = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      if (selectedDate === todayValue) {
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        if (currentMinutes > lastSameDayMinute) {
+          availableSlots.innerHTML = '<div class="today-warning">Hoje não há mais horários disponíveis. Selecione outra data.</div>';
+          return;
+        }
+
+        slots = slots.filter((slot) => slot >= currentMinutes);
+        if (slots.length) {
+          const warning = document.createElement('div');
+          warning.className = 'today-warning';
+          warning.textContent = 'Hoje: apenas horários futuros estão disponíveis.';
+          availableSlots.appendChild(warning);
+        }
+      }
+
+      if (!slots.length) {
+        availableSlots.textContent = 'Nenhum horário disponível para esta data. Escolha outro dia.';
+        return;
+      }
+
+      availableSlots.innerHTML = '';
+      const nextLabel = document.createElement('div');
+      nextLabel.className = 'slots-note';
+      nextLabel.textContent = `Próximos horários livres (intervalo mínimo de ${minIntervalMinutes} min):`;
+      availableSlots.appendChild(nextLabel);
+
+      const nextSlots = slots.slice(0, 6);
+      nextSlots.forEach((slot) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'slot-button';
+        button.textContent = formatTime(slot);
+        button.addEventListener('click', () => {
+          reservationTime.value = formatTime(slot);
+        });
+        availableSlots.appendChild(button);
+      });
+
+      const moreSlots = slots.length - nextSlots.length;
+      if (moreSlots > 0) {
+        const remaining = document.createElement('div');
+        remaining.className = 'slots-more';
+        remaining.textContent = `e mais ${moreSlots} horário(s) disponível(is)...`;
+        availableSlots.appendChild(remaining);
+      }
+    };
+
+    reservationDate.addEventListener('change', renderAvailableSlots);
+    reservationTime.addEventListener('focus', renderAvailableSlots);
+    renderAvailableSlots();
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const name = formData.get('name').trim();
+      const phone = formData.get('phone').trim();
+      const date = formData.get('date');
+      const time = formData.get('time');
+      const service = formData.get('service');
+      const notes = formData.get('notes').trim();
+
+      if (!name || !phone || !date || !time || !service) {
+        successEl.textContent = 'Por favor, preencha todos os campos obrigatórios.';
+        successEl.classList.add('error');
+        return;
+      }
+
+      const selectedMinutes = timeToMinutes(time);
+      const minMinutes = 7 * 60;
+      const maxMinutes = 19 * 60;
+
+      if (selectedMinutes < minMinutes || selectedMinutes > maxMinutes) {
+        successEl.textContent = 'Por favor, escolha um horário entre 07:00 e 19:00.';
+        successEl.classList.add('error');
+        return;
+      }
+
+      const now = new Date();
+      const todayValue = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      if (date === todayValue && selectedMinutes < currentMinutes) {
+        successEl.textContent = 'Este horário já passou. Escolha uma hora futura.';
+        successEl.classList.add('error');
+        return;
+      }
+
+      const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const conflicting = existing.find((reservation) => {
+        if (reservation.date !== date) return false;
+        const reservationMinutes = timeToMinutes(reservation.time);
+        return Math.abs(reservationMinutes - selectedMinutes) < minIntervalMinutes;
+      });
+
+      if (conflicting) {
+        successEl.textContent = 'Já existe um agendamento muito próximo. Por favor escolha outro horário com pelo menos 40 minutos de diferença.';
+        successEl.classList.add('error');
+        return;
+      }
+
+      successEl.classList.remove('error');
+      const request = {
+        id: Date.now(),
+        createdAt: new Date().toISOString(),
+        name,
+        phone,
+        date,
+        time,
+        service,
+        notes: notes || '-'
+      };
+
+      existing.push(request);
+      localStorage.setItem(storageKey, JSON.stringify(existing));
+
+      const message = `Olá! Gostaria de agendar uma reserva.%0A%0ANome: ${encodeURIComponent(name)}%0ATelefone: ${encodeURIComponent(phone)}%0AData: ${encodeURIComponent(date)}%0AHorário: ${encodeURIComponent(time)}%0AServiço: ${encodeURIComponent(service)}%0AObservações: ${encodeURIComponent(notes || '-')} `;
+      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
+
+      successEl.textContent = 'Reserva registrada localmente e redirecionando para o WhatsApp...';
+      window.location.href = whatsappUrl;
+    });
+  </script>
+</body>
+</html>
